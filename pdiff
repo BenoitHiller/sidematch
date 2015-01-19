@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'set'
+
+class ParallelComparator
+  def initialize(options, args)
+    @options = options
+    
+    if args.length < 1
+      exit 1
+    end
+
+    @cannon_file = File.open(args[0])
+
+    if ARGV.length > 1
+      @check_file = File.open(args[1])
+    else
+      @check_file = $stdin
+    end
+
+    @ifs = options[:separator]
+    @ofs = options[:output_separator]
+    @line_number = 0
+    @failures = 0
+    @too_short = false
+    @too_long = false
+  end
+
+  def compare
+    while line = @cannon_file.gets(@ifs)
+      @line_number += 1
+      line_strip = line[0..(-(@ifs.length+1))]
+      output = line_strip + " "
+      input_line = @check_file.gets(@ifs)
+      if ! input_line.nil?
+        input_line_strip = input_line[0..(-(@ifs.length+1))]
+        if line_strip == input_line_strip
+          output += "\033[0;32m"
+        else
+          output += "\033[1;31m"
+          @failures += 1
+        end
+        output += input_line_strip
+      else
+          @too_short = true
+          output += "\033[0;35mEOF"
+          printf "%s\033[0m%s", output, @ofs
+          break
+      end
+      printf "%s\033[0m%s", output, @ofs
+    end
+    if @too_short
+      remaining = @cannon_file.readlines(@ifs).count
+      $stderr.puts "The test input was #{remaining + 1} line#{remaining > 0 ? "s" : ""} too short."
+    else
+      remaining = @check_file.readlines(@ifs).count
+      if remaining > 0
+        @too_long = true
+        $stderr.puts "The test input was #{remaining} line#{remaining > 1 ? "s" : ""} longer than expected."
+      end
+    end
+
+  end
+
+  def close
+    if @check_file != $stdin
+      @check_file.close
+    end
+    @cannon_file.close
+  end
+
+  def status
+    if @failures > 0 || @too_short
+      return 1
+    elsif @too_long
+      #TODO add flag for this
+      return 2
+    else
+      return 0
+    end
+  end
+end
+
+options = Hash.new(false)
+options[:separator] = $/
+options[:output_separator] = $/
+# parse options out of ARGV
+
+comparator = ParallelComparator.new(options,ARGV)
+comparator.compare
+comparator.close
+
+exit comparator.status
