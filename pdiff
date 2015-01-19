@@ -13,7 +13,7 @@ class ParallelComparator
 
     @cannon_file = File.open(args[0])
 
-    if ARGV.length > 1
+    if ARGV.length > 1 && args[1] != "-"
       @check_file = File.open(args[1])
     else
       @check_file = $stdin
@@ -21,6 +21,12 @@ class ParallelComparator
 
     @ifs = options[:separator]
     @ofs = options[:output_separator]
+    @print_failures = !options[:matches_only]
+    @print_matches = !options[:failures_only]
+    @silent = options[:silent]
+    @quiet = options[:quiet]
+    @line_numbers = options[:line_numbers]
+    @tab = options[:tab]
     @line_number = 0
     @failures = 0
     @too_short = false
@@ -29,9 +35,14 @@ class ParallelComparator
 
   def compare
     while line = @cannon_file.gets(@ifs)
+      failed = false
+      output = ""
       @line_number += 1
+      if @line_numbers
+        output += @line_number.to_s + @tab
+      end
       line_strip = line[0..(-(@ifs.length+1))]
-      output = line_strip + " "
+      output += line_strip + @tab
       input_line = @check_file.gets(@ifs)
       if ! input_line.nil?
         input_line_strip = input_line[0..(-(@ifs.length+1))]
@@ -39,25 +50,40 @@ class ParallelComparator
           output += "\033[0;32m"
         else
           output += "\033[1;31m"
+          failed = true
           @failures += 1
         end
         output += input_line_strip
-      else
-          @too_short = true
+      else 
+        if @print_failures
           output += "\033[0;35mEOF"
-          printf "%s\033[0m%s", output, @ofs
-          break
+          unless @silent
+            printf "%s\033[0m%s", output, @ofs
+          end
+        end
+        @too_short = true
+        break
       end
-      printf "%s\033[0m%s", output, @ofs
+
+      if (failed && @print_failures) || (!failed && @print_matches)
+        unless @silent
+          printf "%s\033[0m%s", output, @ofs
+        end
+      end
     end
+
     if @too_short
       remaining = @cannon_file.readlines(@ifs).count
-      $stderr.puts "The test input was #{remaining + 1} line#{remaining > 0 ? "s" : ""} too short."
+      unless @quiet
+        $stderr.puts "The test input was #{remaining + 1} line#{remaining > 0 ? "s" : ""} too short."
+      end
     else
       remaining = @check_file.readlines(@ifs).count
       if remaining > 0
         @too_long = true
-        $stderr.puts "The test input was #{remaining} line#{remaining > 1 ? "s" : ""} longer than expected."
+        unless @quiet
+          $stderr.puts "The test input was #{remaining} line#{remaining > 1 ? "s" : ""} longer than expected."
+        end
       end
     end
 
@@ -85,7 +111,73 @@ end
 options = Hash.new(false)
 options[:separator] = $/
 options[:output_separator] = $/
+options[:tab] = " "
 # parse options out of ARGV
+OptionParser.new do |opts|
+  opts.banner += " source_file [target_file]"
+  opts.version = "0.5"
+
+  opts.on("-m", "--matches", "Only print matches") do
+    if options[:failures_only]
+      $stderr.puts "Invalid options, -m and -M are mutually exclusive"
+      exit 5
+    end
+    
+    options[:matches_only] = true
+  end
+
+  opts.on("-M", "--no-matches", "Only print failures") do
+    if options[:matches_only]
+      $stderr.puts "Invalid options, -m and -M are mutually exclusive"
+      exit 5
+    end
+    
+    options[:failures_only] = true
+  end
+
+  opts.on("-q", "--quiet", "Do not print details to stderr") do
+    options[:quiet] = true
+  end
+
+  opts.on("-s", "--silent", "Do not print anything at all.") do
+    options[:silent] = true
+    options[:quiet] = true
+  end
+
+  opts.on("-0", "Use null as the input and output delimeter.", "  This will be superceeded by -d or -D") do
+    options[:separator] = "\0"
+    options[:output_separator] = "\0"
+  end
+
+  opts.on("-d delimeter", "Input delimeter. By default this is a newline.") do |separator|
+    options[:separator] = separator
+  end
+
+  opts.on("-D delimeter", "Output delimeter. By default this is a newline.") do |separator|
+    options[:output_separator] = separator
+  end
+
+  opts.on("-l", "--line-numbers", "Print line numbers at the start of each line.") do
+    options[:line_numbers] = true
+  end
+
+  opts.on("-T column_delimeter", "Specify the characters to separate the columns with.", "  The default is a single space.") do |tab|
+      options[:tab] = tab
+  end
+
+  opts.on("-t", "Delimit columns with a tab. Equivalent to \"-T \\t\".") do |tab|
+      options[:tab] = "\t"
+  end
+
+  begin 
+    opts.order!
+  rescue OptionParser::ParseError => error
+    $stderr.puts error
+    $stderr.puts "-h or --help will show valid options"
+    exit 5
+  end
+
+end
 
 comparator = ParallelComparator.new(options,ARGV)
 comparator.compare
