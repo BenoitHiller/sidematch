@@ -100,10 +100,9 @@ class ParallelComparator
   end
 
   def open(source, target=nil)
-    if source.is_a? IO
+    unless source.is_a? String
       source_file = source
     else
-
       unless File.file? source
         $stderr.puts "The file \"" +  source + "\" was not found."
         exit 6
@@ -114,7 +113,7 @@ class ParallelComparator
 
     if target.nil? || target == "-"
       target_file = $stdin
-    elsif target.is_a? IO
+    elsif !target.is_a? String
       target_file = target
     else
       unless File.file? target
@@ -225,6 +224,8 @@ class ParallelComparator
 
 end
 
-comparator = ParallelComparator.new(ARGV)
-exit comparator.compare(*ARGV)
+if __FILE__ == $0
+  comparator = ParallelComparator.new(ARGV)
+  exit comparator.compare(*ARGV)
+end
 
