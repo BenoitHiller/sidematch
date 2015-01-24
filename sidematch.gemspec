@@ -8,6 +8,6 @@ Gem::Specification.new do |s|
   s.authors     = ['Benoit Hiller']
   s.email       = 'benoit.hiller@gmail.com'
   s.files       = ['lib/sidematch.rb']
-  s.homepage    = ''
+  s.homepage    = 'https://github.com/StephenHamilton/sidematch'
   s.license       = 'MIT'
 end
