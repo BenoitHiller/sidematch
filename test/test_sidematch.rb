@@ -1,5 +1,5 @@
 
-require_relative "../pdiff"
+require "sidematch"
 require "test/unit"
 require "stringio"
 
@@ -45,6 +45,7 @@ class TestParallelComparator < Test::Unit::TestCase
                   ["1\n2\n3\n", "1\n2\n3\n", "1 #{GREEN}1#{CLEAR}\n2 #{GREEN}2#{CLEAR}\n3 #{GREEN}3#{CLEAR}\n",0],
                   ["1\n2\n3\n", "1\n2\n", "1 #{GREEN}1#{CLEAR}\n2 #{GREEN}2#{CLEAR}\n",1],
                  ) 
+
     check_strings(["-c", "-q", "-M"],
                   ["1\n2\n3\n", "1\n2\n4\n", "3 #{RED}4#{CLEAR}\n",1],
                   ["1\n2\n3\n", "1\n2\n3\n", "",0],

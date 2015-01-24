@@ -4,6 +4,12 @@ require 'optparse'
 require 'set'
 
 class ParallelComparator
+
+  GREEN="\033[0;32m"
+  RED="\033[1;31m"
+  PURPLE="\033[0;35m"
+  CLEAR="\033[0m"
+
   def initialize(args,output=$stdout)
     @output = output
     if output.tty?
@@ -127,6 +133,36 @@ class ParallelComparator
     return [source_file,target_file]
   end
 
+  def get_formatted(left, right, failed, line, eof=false)
+    parts = []
+    
+    unless @color
+      parts << (failed ? "-" : "+")
+    end
+
+    if @line_numbers
+      parts << line
+    end
+    
+    parts << left
+
+    if eof 
+      parts << color(right, PURPLE)
+    else
+      parts << color(right, (failed ? RED : GREEN))
+    end
+
+    return parts.join(@tab)
+  end
+
+  def color(string, color)
+    if @color
+      color + string + CLEAR
+    else
+      string
+    end
+  end
+
   def compare(source, target=nil)
     source_file, target_file = open(source, target)
     
@@ -135,59 +171,32 @@ class ParallelComparator
     too_short = false
     too_long = false
 
-    while line = source_file.gets(@ifs)
+    while left = source_file.gets(@ifs)
       failed = false
-      output = ""
       line_number += 1
-      if @line_numbers
-        output += line_number.to_s + @tab
-      end
-      line_strip = line[0..(-(@ifs.length+1))]
-      output += line_strip + @tab
-      input_line = target_file.gets(@ifs)
-      if ! input_line.nil?
-        input_line_strip = input_line[0..(-(@ifs.length+1))]
-        if line_strip == input_line_strip
-          if @color
-            output += "\033[0;32m"
-          else
-            output = "+" + @tab + output
-          end
-        else
-          if @color
-            output += "\033[1;31m"
-          else
-            output = "-" + @tab + output
-          end
+      left = left[0..(-(@ifs.length+1))]
+      right = target_file.gets(@ifs)
+      unless right.nil?
+        right = right[0..(-(@ifs.length+1))]
+        if left != right
           failed = true
           failures += 1
         end
-        output += input_line_strip
       else 
-        if @print_failures
-          if @color
-            output += "\033[0;35m"
-          else
-            output = "-" + @tab + output
-          end
-          output += "EOF"
-          if @color
-            output += "\033[0m"
-          end
-          unless @silent
-            @output.printf "%s%s", output, @ofs
-          end
+        if !@silent && @print_failures
+          @output.printf("%s%s", 
+            get_formatted(left, "EOF", true, line_number, true),
+            @ofs)
         end
         too_short = true
         break
       end
 
-      if (failed && @print_failures) || (!failed && @print_matches)
-        unless @silent
-          if @color
-            output += "\033[0m"
-          end
-          @output.printf "%s%s", output, @ofs
+      unless @silent
+        if (failed && @print_failures) || (!failed && @print_matches)
+          @output.printf("%s%s",
+            get_formatted(left, right, failed, line_number),
+            @ofs)
         end
       end
     end
@@ -211,7 +220,7 @@ class ParallelComparator
       return 1
     elsif too_long
       #TODO add flag to ignore this
-      return 2
+      return 3
     else
       return 0
     end
@@ -222,10 +231,5 @@ class ParallelComparator
     source_file.close
   end
 
-end
-
-if __FILE__ == $0
-  comparator = ParallelComparator.new(ARGV)
-  exit comparator.compare(*ARGV)
 end
 

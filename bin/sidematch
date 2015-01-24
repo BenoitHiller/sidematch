@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+require 'sidematch'
+
+comparator = ParallelComparator.new(ARGV)
+
+if ARGV.length < 1
+  $stderr.puts "No files were provided."
+  exit 5
+end
+
+exit comparator.compare(*ARGV)
